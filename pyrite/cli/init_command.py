@@ -10,6 +10,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from .output import validate_output_format
+
 logger = logging.getLogger(__name__)
 
 console = Console()
@@ -421,7 +423,10 @@ def init_kb(
         None, "--schema-file", help="Custom schema YAML file to use as preset override"
     ),
     output_format: str = typer.Option(
-        "json", "--format", help="Output format: json, rich, markdown, csv, yaml"
+        "json",
+        "--format",
+        callback=validate_output_format,
+        help="Output format: json, rich, markdown, csv, yaml",
     ),
 ):
     """Initialize a new knowledge base from a template.
@@ -436,6 +441,15 @@ def init_kb(
 
     path = path.expanduser().resolve()
     kb_name = name or path.name
+    from ..exceptions import ConfigError
+    from ..services.kb_names import refuse_reserved_kb_name
+
+    try:
+        refuse_reserved_kb_name(kb_name)
+    except ConfigError as exc:
+        from ..utils.errors import cli_error
+
+        cli_error(str(exc), error_code="INVALID_KB_NAME")
 
     # Idempotency: if kb.yaml exists, warn and return
     kb_yaml_path = path / "kb.yaml"

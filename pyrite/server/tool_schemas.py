@@ -254,7 +254,7 @@ READ_TOOLS = {
         },
     },
     "kb_orient": {
-        "description": "Use this first. With no kb_name it lists the KBs you can read. With kb_name it returns a one-shot summary of that KB: description, entry counts by type, top tags, recent changes, and the schema of the types the KB accepts. Pass detail='brief' for a read session: it omits the write-side schema blocks (ai_instructions, evaluation_rubric, guidelines, goals), which kb_schema returns when you need to write. brief keeps relationship_types, for following links.",
+        "description": "Use this first. With no kb_name it lists up to 50 KBs you can read (maximum 100 per page); pass offset to continue when has_more is true. With kb_name it returns a one-shot summary of that KB: description, entry counts by type, top tags, recent changes, and the schema of the types the KB accepts. Pass detail='brief' for a read session: it omits the write-side schema blocks (ai_instructions, evaluation_rubric, guidelines, goals), which kb_schema returns when you need to write. brief keeps relationship_types, for following links.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -272,6 +272,17 @@ READ_TOOLS = {
                     "type": ["string", "null"],
                     "enum": ["brief", "full", None],
                     "description": "full (default; null is the same): everything. brief: omits ai_instructions, evaluation_rubric, guidelines and goals.",
+                },
+                "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "Maximum KBs in the no-name overview (default 50).",
+                },
+                "offset": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "KB offset for the no-name overview; use with has_more to page.",
                 },
             },
         },
@@ -652,7 +663,7 @@ READ_TOOLS = {
         },
     },
     "kb_batch_suggest": {
-        "description": "Batch-compare all entries between two KBs to find potential cross-KB links. For each entry in source_kb, finds similar entries in target_kb. Deduplicates bidirectional matches.",
+        "description": "Batch-compare all entries between two KBs to find potential cross-KB links. For each entry in source_kb, finds similar entries in target_kb. Deduplicates bidirectional matches. Entries with no body and no summary are left out of the targets unless include_empty is true.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -677,12 +688,16 @@ READ_TOOLS = {
                     "type": "boolean",
                     "description": "Exclude already-linked pairs (default: true)",
                 },
+                "include_empty": {
+                    "type": "boolean",
+                    "description": "Also return entries with no body and no summary (default: false, they are left out)",
+                },
             },
             "required": ["source_kb", "target_kb"],
         },
     },
     "kb_discover_neighbors": {
-        "description": "Find related entries across all KBs, including the source KB, unless target_kb limits the search. Excludes the source entry and, by default, already-linked entries.",
+        "description": "Find related entries across all KBs, including the source KB, unless target_kb limits the search. Excludes the source entry and, by default, already-linked entries. Entries with no body and no summary are left out unless include_empty is true.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -710,6 +725,10 @@ READ_TOOLS = {
                 "exclude_linked": {
                     "type": "boolean",
                     "description": "Exclude entries that already have a link to the source (default: true)",
+                },
+                "include_empty": {
+                    "type": "boolean",
+                    "description": "Also return entries with no body and no summary (default: false, they are left out)",
                 },
             },
             "required": ["entry_id", "kb_name"],

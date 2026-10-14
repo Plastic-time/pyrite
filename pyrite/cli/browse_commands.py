@@ -12,7 +12,7 @@ from rich.table import Table
 
 from ..exceptions import PyriteError
 from ..services.access_policy import UNSCOPED
-from ..services.read_shaping import parse_fields_param, project_fields
+from ..services.read_shaping import parse_cli_fields, project_fields
 from .context import cli_context
 from .output import validate_output_format
 
@@ -51,7 +51,10 @@ def register_browse_commands(app: typer.Typer) -> None:
         offset: int = typer.Option(0, "--offset", help="Pagination offset"),
         fields: str = typer.Option(None, "--fields", help="Comma-separated fields to return"),
         output_format: str = typer.Option(
-            "json", "--format", help="Output format: json, rich, markdown, csv, yaml"
+            "json",
+            "--format",
+            callback=validate_output_format,
+            help="Output format: json, rich, markdown, csv, yaml",
         ),
     ):
         """Browse entries with filters and pagination."""
@@ -69,7 +72,7 @@ def register_browse_commands(app: typer.Typer) -> None:
             total = svc.count_entries(kb_name=kb_name, entry_type=entry_type, tag=tag)
 
             # Apply field projection. One rule for every read surface (#193).
-            fields_list = parse_fields_param(fields)
+            fields_list = parse_cli_fields(fields)
             if fields_list:
                 entries = [project_fields(record, fields_list) for record in entries]
 
@@ -119,7 +122,10 @@ def register_browse_commands(app: typer.Typer) -> None:
         ),
         fields: str = typer.Option(None, "--fields", help="Comma-separated fields to return"),
         output_format: str = typer.Option(
-            "json", "--format", help="Output format: json, rich, markdown, csv, yaml"
+            "json",
+            "--format",
+            callback=validate_output_format,
+            help="Output format: json, rich, markdown, csv, yaml",
         ),
     ):
         """Fetch multiple entries in one call."""
@@ -138,7 +144,7 @@ def register_browse_commands(app: typer.Typer) -> None:
             results = svc.get_entries(parsed_ids)
 
             # Apply field projection. One rule for every read surface (#193).
-            fields_list = parse_fields_param(fields)
+            fields_list = parse_cli_fields(fields)
             if fields_list:
                 results = [project_fields(record, fields_list) for record in results]
 
@@ -195,8 +201,17 @@ def register_browse_commands(app: typer.Typer) -> None:
             "--detail",
             help="full (default) or brief. brief omits the write-side schema blocks.",
         ),
+        overview_limit: int = typer.Option(
+            50, "--limit", help="KBs per no-name overview page (maximum 100)."
+        ),
+        overview_offset: int = typer.Option(
+            0, "--offset", min=0, help="KB offset for a no-name overview page."
+        ),
         output_format: str = typer.Option(
-            "json", "--format", help="Output format: json, rich, markdown, csv, yaml"
+            "json",
+            "--format",
+            callback=validate_output_format,
+            help="Output format: json, rich, markdown, csv, yaml",
         ),
     ):
         """One-shot KB orientation summary — types, tags, recent changes, and schema.
@@ -210,7 +225,12 @@ def register_browse_commands(app: typer.Typer) -> None:
         with cli_context() as (config, db, svc):
             try:
                 if not named_kb(kb_name):
-                    result = svc.orient_overview(readable_kbs=UNSCOPED, detail=detail)
+                    result = svc.orient_overview(
+                        readable_kbs=UNSCOPED,
+                        detail=detail,
+                        limit=overview_limit,
+                        offset=overview_offset,
+                    )
                 else:
                     result = svc.orient(kb_name, recent_limit=recent, detail=detail)
             except KBNotFoundError as e:
@@ -343,7 +363,10 @@ def register_browse_commands(app: typer.Typer) -> None:
         ),
         fields: str = typer.Option(None, "--fields", help="Comma-separated fields to return"),
         output_format: str = typer.Option(
-            "json", "--format", help="Output format: json, rich, markdown, csv, yaml"
+            "json",
+            "--format",
+            callback=validate_output_format,
+            help="Output format: json, rich, markdown, csv, yaml",
         ),
     ):
         """Show recently changed entries."""
@@ -360,7 +383,7 @@ def register_browse_commands(app: typer.Typer) -> None:
                 entries = [e for e in entries if (e.get("updated_at") or "") >= since]
 
             # Apply field projection. One rule for every read surface (#193).
-            fields_list = parse_fields_param(fields)
+            fields_list = parse_cli_fields(fields)
             if fields_list:
                 entries = [project_fields(record, fields_list) for record in entries]
 
@@ -408,7 +431,10 @@ def register_browse_commands(app: typer.Typer) -> None:
             "desc", "--sort", "-s", help="Sort order: asc or desc (default: desc)"
         ),
         output_format: str = typer.Option(
-            "json", "--format", help="Output format: json, rich, markdown, csv, yaml"
+            "json",
+            "--format",
+            callback=validate_output_format,
+            help="Output format: json, rich, markdown, csv, yaml",
         ),
     ):
         """Query timeline events."""

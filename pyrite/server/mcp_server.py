@@ -180,6 +180,20 @@ def _safe_message(exc: Exception) -> str:
     return str(exc)
 
 
+def _boolean_arg(args: dict[str, Any], name: str, default: bool = False) -> bool | None:
+    """A boolean tool argument; ``None`` when it is neither a bool nor "true"/"false".
+
+    A client that sends the string "false" must not get the truthy reading
+    ``bool("false")`` gives (#200).
+    """
+    value = args.get(name, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+        return value.strip().lower() == "true"
+    return None
+
+
 def _error(
     code: str,
     message: str,
@@ -402,16 +416,16 @@ class PyriteMCPServer:
         self.db = PyriteDB(self.config.settings.index_path)
         self.db.merge_registered_kbs(self.config)
         self.index_mgr = IndexManager(self.db, self.config)
-        self.svc = KBService(self.config, self.db)
-        self.graph_svc = GraphService(self.db)
-        self.export_svc = ExportService(self.config, self.db)
-        self._index_worker = None  # Lazy-init
 
         # KB registry (seeded from config on init)
         from ..services.kb_registry_service import KBRegistryService
 
         self.registry = KBRegistryService(self.config, self.db, self.index_mgr)
         self.registry.seed_from_config()
+        self.svc = KBService(self.config, self.db, registry=self.registry)
+        self.graph_svc = GraphService(self.db)
+        self.export_svc = ExportService(self.config, self.db)
+        self._index_worker = None  # Lazy-init
 
         # Rate limiter and tool→tier map
         self.rate_limiter = MCPRateLimiter(self.config.settings)
@@ -1042,7 +1056,12 @@ class PyriteMCPServer:
             if kb_name is not None and not isinstance(kb_name, str):
                 raise ValidationError(f"kb_name must be a string, not {type(kb_name).__name__}")
             if not named_kb(kb_name):
-                return self.svc.orient_overview(readable_kbs=readable_kbs, detail=detail)
+                return self.svc.orient_overview(
+                    readable_kbs=readable_kbs,
+                    detail=detail,
+                    limit=args.get("limit", 50),
+                    offset=args.get("offset", 0),
+                )
             return self.svc.orient(kb_name, recent_limit=args.get("recent_limit", 5), detail=detail)
         except KBNotFoundError as e:
             # A scoped caller is refused by the dispatcher before this for any
@@ -1627,6 +1646,10 @@ class PyriteMCPServer:
         if not source_kb or not target_kb:
             return _error("MISSING_PARAMETER", "source_kb and target_kb are required")
 
+        include_empty = _boolean_arg(args, "include_empty")
+        if include_empty is None:
+            return _error("INVALID_PARAMETER", "include_empty must be true or false")
+
         svc = self.link_svc
         pairs = svc.batch_suggest(
             source_kb=source_kb,
@@ -1635,6 +1658,7 @@ class PyriteMCPServer:
             mode=args.get("mode", "keyword"),
             exclude_linked=args.get("exclude_linked", True),
             readable_kbs=readable_kbs,
+            include_empty=include_empty,
         )
 
         return {
@@ -1653,6 +1677,10 @@ class PyriteMCPServer:
         if not entry_id or not kb_name:
             return _error("MISSING_PARAMETER", "entry_id and kb_name are required")
 
+        include_empty = _boolean_arg(args, "include_empty")
+        if include_empty is None:
+            return _error("INVALID_PARAMETER", "include_empty must be true or false")
+
         svc = self.link_svc
         candidates = svc.discover_neighbors(
             entry_id=entry_id,
@@ -1662,6 +1690,7 @@ class PyriteMCPServer:
             mode=args.get("mode", "hybrid"),
             exclude_linked=args.get("exclude_linked", True),
             readable_kbs=readable_kbs,
+            include_empty=include_empty,
         )
 
         return {
