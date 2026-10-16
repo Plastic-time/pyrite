@@ -107,6 +107,8 @@ def _is_regular_file(path: Path) -> bool:
         return stat.S_ISREG(path.stat().st_mode)
     except OSError:
         return False
+
+
 def new_entry_text(entry: Entry) -> str:
     """The text of a new entry file: ``---\nid: <id>\n---\n`` and the body, then
     one ``Set`` per key of the type's file frontmatter, in order, through
@@ -818,6 +820,8 @@ class KBRepository:
                 # don't pre-count its body or double-write.
                 if md_file.resolve() == src.resolve():
                     continue
+                if not _is_regular_file(md_file):
+                    continue  # a FIFO would block the read (#990)
                 try:
                     raw = md_file.read_bytes()
                     text = raw.decode("utf-8")
@@ -1049,6 +1053,8 @@ class KBRepository:
         """
         query_lower = query.lower()
         for file_path in self.list_files():
+            if not _is_regular_file(file_path):
+                continue  # a FIFO would block the read (#990)
             try:
                 content = file_path.read_text(encoding="utf-8")
                 if query_lower in content.lower():
