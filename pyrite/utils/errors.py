@@ -577,7 +577,7 @@ def _named(exc: BaseException) -> str:
         if isinstance(exc, SystemExit):
             code = exc.code
         elif isinstance(exc, typer.Exit):
-            code = exc.exit_code
+            code = getattr(exc, "exit_code", None)
         else:
             code = None
         return type(exc).__name__ + (f" (exit code {code!r})" if code is not None else "")
