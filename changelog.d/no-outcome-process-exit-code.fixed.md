@@ -1,0 +1,1 @@
+- CLI `NO_OUTCOME` errors report an exit code only for `SystemExit` or Click `Exit`; arbitrary exception attributes such as SQLAlchemy's documentation code are no longer mislabeled as exit codes (#1014).
